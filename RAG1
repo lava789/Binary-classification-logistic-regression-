@@ -328,11 +328,11 @@
         "vectorstore = create_vector_store(chunks, persistent_directory)"
       ],
       "metadata": {
-        "id": "3ce9pcT3HyFs",
-        "outputId": "d509fee1-687e-47a3-bfb1-ed3b9b4837ea",
         "colab": {
           "base_uri": "https://localhost:8080/"
-        }
+        },
+        "id": "3ce9pcT3HyFs",
+        "outputId": "d509fee1-687e-47a3-bfb1-ed3b9b4837ea"
       },
       "execution_count": 76,
       "outputs": [
@@ -401,11 +401,11 @@
         "    print(f\"Content: {doc.page_content}\")"
       ],
       "metadata": {
-        "id": "emU_gvX0IURk",
-        "outputId": "798e2c00-604f-4da7-ffc8-0d85354653fe",
         "colab": {
           "base_uri": "https://localhost:8080/"
-        }
+        },
+        "id": "emU_gvX0IURk",
+        "outputId": "798e2c00-604f-4da7-ffc8-0d85354653fe"
       },
       "execution_count": 78,
       "outputs": [
@@ -477,12 +477,12 @@
       ],
       "metadata": {
         "collapsed": true,
-        "id": "5HSOUShdOQiu",
-        "outputId": "ab8eb63b-d540-4614-d7cc-255f0902f245",
         "colab": {
           "base_uri": "https://localhost:8080/",
           "height": 711
-        }
+        },
+        "id": "5HSOUShdOQiu",
+        "outputId": "ab8eb63b-d540-4614-d7cc-255f0902f245"
       },
       "execution_count": 80,
       "outputs": [
@@ -576,11 +576,11 @@
         "rag_query(\"What does Tesla do?\")"
       ],
       "metadata": {
-        "id": "AEYi-ZRMQ53Q",
-        "outputId": "cc6ce140-b130-48b8-dd91-1a8775be5e5b",
         "colab": {
           "base_uri": "https://localhost:8080/"
-        }
+        },
+        "id": "AEYi-ZRMQ53Q",
+        "outputId": "cc6ce140-b130-48b8-dd91-1a8775be5e5b"
       },
       "execution_count": 81,
       "outputs": [
