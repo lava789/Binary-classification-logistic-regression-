@@ -1,0 +1,627 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "authorship_tag": "ABX9TyP4N4WRfaxNL2Fk3LtwCtDd",
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/lava789/Binary-classification-logistic-regression-/blob/main/RAG1\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 69,
+      "metadata": {
+        "collapsed": true,
+        "id": "Oc2KlbXT9U5R"
+      },
+      "outputs": [],
+      "source": [
+        "!pip install -q langchain langchain-community langchain-openai langchain-chroma langchain-text-splitters chromadb python-dotenv"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import os\n",
+        "from getpass import getpass\n",
+        "\n",
+        "os.environ[\"GOOGLE_API_KEY\"] = getpass(\"Enter your Google AI Studio API key: \")"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "T7i5YFm5GXLm",
+        "outputId": "fa7831b9-9b3a-4f92-9489-4250fdd4c28b"
+      },
+      "execution_count": 70,
+      "outputs": [
+        {
+          "name": "stdout",
+          "output_type": "stream",
+          "text": [
+            "Enter your Google AI Studio API key: ··········\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from google.colab import drive\n",
+        "drive.mount('/content/drive')\n",
+        "\n",
+        "BASE_DIR = \"/content/drive/MyDrive/rag-for-beginners\"\n",
+        "import os\n",
+        "os.makedirs(BASE_DIR, exist_ok=True)"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "dxKzu9c7-2HE",
+        "outputId": "6c8f1803-f619-4463-cbc5-cbe3c9f7c210"
+      },
+      "execution_count": 71,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Drive already mounted at /content/drive; to attempt to forcibly remount, call drive.mount(\"/content/drive\", force_remount=True).\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "docs_path = f\"{BASE_DIR}/docs\"\n",
+        "os.makedirs(docs_path, exist_ok=True)\n",
+        "\n",
+        "# Quick test files so you have something to run the pipeline on right away.\n",
+        "# Replace these with your own .txt files later (just drop them into the\n",
+        "# rag-for-beginners/docs folder in your Google Drive).\n",
+        "sample_files = {\n",
+        "    \"google.txt\": \"Google LLC is an American multinational corporation and technology company focusing on online advertising, search engine technology, cloud computing, computer software, quantum computing, e-commerce, consumer electronics, and artificial intelligence (AI).\",\n",
+        "    \"tesla.txt\": \"Tesla, Inc. is an American multinational automotive and clean energy company headquartered in Austin, Texas.\"\n",
+        "}\n",
+        "\n",
+        "for filename, content in sample_files.items():\n",
+        "    filepath = os.path.join(docs_path, filename)\n",
+        "    if not os.path.exists(filepath):\n",
+        "        with open(filepath, \"w\") as f:\n",
+        "            f.write(content)\n",
+        "\n",
+        "print(\"Files in docs folder:\", os.listdir(docs_path))"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "cXiKDhKCsmU5",
+        "outputId": "ee1478b2-1325-4aea-f4f5-60c4fcb5f485"
+      },
+      "execution_count": 72,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Files in docs folder: ['google.txt', 'tesla.txt']\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from langchain_community.document_loaders import TextLoader, DirectoryLoader\n",
+        "\n",
+        "def load_documents(docs_path=\"docs\"):\n",
+        "    \"\"\"Load all text files from the docs directory\"\"\"\n",
+        "    print(f\"Loading documents from {docs_path}...\")\n",
+        "\n",
+        "    if not os.path.exists(docs_path):\n",
+        "        raise FileNotFoundError(f\"The directory {docs_path} does not exist. Please create it and add your company files.\")\n",
+        "\n",
+        "    loader = DirectoryLoader(\n",
+        "        path=docs_path,\n",
+        "        glob=\"*.txt\",\n",
+        "        loader_cls=TextLoader\n",
+        "    )\n",
+        "\n",
+        "    documents = loader.load()\n",
+        "\n",
+        "    if len(documents) == 0:\n",
+        "        raise FileNotFoundError(f\"No .txt files found in {docs_path}. Please add your company documents.\")\n",
+        "\n",
+        "    for i, doc in enumerate(documents[:2]):\n",
+        "        print(f\"\\nDocument {i+1}:\")\n",
+        "        print(f\"  Source: {doc.metadata['source']}\")\n",
+        "        print(f\"  Content length: {len(doc.page_content)} characters\")\n",
+        "        print(f\"  Content preview: {doc.page_content[:100]}...\")\n",
+        "        print(f\"  metadata: {doc.metadata}\")\n",
+        "\n",
+        "    return documents\n",
+        "\n",
+        "documents = load_documents(docs_path)"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "Fwd-TbuVtAkv",
+        "outputId": "79a83371-8aa0-4310-83be-7ec96aa2223b"
+      },
+      "execution_count": 73,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Loading documents from /content/drive/MyDrive/rag-for-beginners/docs...\n",
+            "\n",
+            "Document 1:\n",
+            "  Source: /content/drive/MyDrive/rag-for-beginners/docs/google.txt\n",
+            "  Content length: 255 characters\n",
+            "  Content preview: Google LLC is an American multinational corporation and technology company focusing on online advert...\n",
+            "  metadata: {'source': '/content/drive/MyDrive/rag-for-beginners/docs/google.txt'}\n",
+            "\n",
+            "Document 2:\n",
+            "  Source: /content/drive/MyDrive/rag-for-beginners/docs/tesla.txt\n",
+            "  Content length: 108 characters\n",
+            "  Content preview: Tesla, Inc. is an American multinational automotive and clean energy company headquartered in Austin...\n",
+            "  metadata: {'source': '/content/drive/MyDrive/rag-for-beginners/docs/tesla.txt'}\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from langchain_text_splitters import CharacterTextSplitter\n",
+        "\n",
+        "def split_documents(documents, chunk_size=1000, chunk_overlap=0):\n",
+        "    \"\"\"Split documents into smaller chunks with overlap\"\"\"\n",
+        "    print(\"Splitting documents into chunks...\")\n",
+        "\n",
+        "    text_splitter = CharacterTextSplitter(\n",
+        "        chunk_size=chunk_size,\n",
+        "        chunk_overlap=chunk_overlap\n",
+        "    )\n",
+        "\n",
+        "    chunks = text_splitter.split_documents(documents)\n",
+        "\n",
+        "    if chunks:\n",
+        "        for i, chunk in enumerate(chunks[:5]):\n",
+        "            print(f\"\\n--- Chunk {i+1} ---\")\n",
+        "            print(f\"Source: {chunk.metadata['source']}\")\n",
+        "            print(f\"Length: {len(chunk.page_content)} characters\")\n",
+        "            print(f\"Content:\")\n",
+        "            print(chunk.page_content)\n",
+        "            print(\"-\" * 50)\n",
+        "\n",
+        "        if len(chunks) > 5:\n",
+        "            print(f\"\\n... and {len(chunks) - 5} more chunks\")\n",
+        "\n",
+        "    return chunks\n",
+        "\n",
+        "chunks = split_documents(documents)"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "VW780Qhdwy_z",
+        "outputId": "b6fba48a-6bff-45bb-9533-991856371da0"
+      },
+      "execution_count": 74,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Splitting documents into chunks...\n",
+            "\n",
+            "--- Chunk 1 ---\n",
+            "Source: /content/drive/MyDrive/rag-for-beginners/docs/google.txt\n",
+            "Length: 255 characters\n",
+            "Content:\n",
+            "Google LLC is an American multinational corporation and technology company focusing on online advertising, search engine technology, cloud computing, computer software, quantum computing, e-commerce, consumer electronics, and artificial intelligence (AI).\n",
+            "--------------------------------------------------\n",
+            "\n",
+            "--- Chunk 2 ---\n",
+            "Source: /content/drive/MyDrive/rag-for-beginners/docs/tesla.txt\n",
+            "Length: 108 characters\n",
+            "Content:\n",
+            "Tesla, Inc. is an American multinational automotive and clean energy company headquartered in Austin, Texas.\n",
+            "--------------------------------------------------\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import google.generativeai as genai\n",
+        "genai.configure(api_key=os.environ[\"GOOGLE_API_KEY\"])\n",
+        "\n",
+        "for m in genai.list_models():\n",
+        "    if 'embedContent' in m.supported_generation_methods:\n",
+        "        print(m.name)"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 69
+        },
+        "id": "kRLxDHotGyRo",
+        "outputId": "337a3166-8d68-4adb-c965-eadf2aafd8bc"
+      },
+      "execution_count": 75,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "models/gemini-embedding-001\n",
+            "models/gemini-embedding-2-preview\n",
+            "models/gemini-embedding-2\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "**Step 7 (updated) — Use Gemini's embedding model instead of OpenAI's**"
+      ],
+      "metadata": {
+        "id": "kWVzEPw9KYPS"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from langchain_google_genai import GoogleGenerativeAIEmbeddings\n",
+        "from langchain_chroma import Chroma\n",
+        "\n",
+        "def create_vector_store(chunks, persist_directory):\n",
+        "    \"\"\"Create and persist ChromaDB vector store\"\"\"\n",
+        "    print(\"Creating embeddings and storing in ChromaDB...\")\n",
+        "\n",
+        "    embedding_model = GoogleGenerativeAIEmbeddings(model=\"models/gemini-embedding-001\")\n",
+        "\n",
+        "    print(\"--- Creating vector store ---\")\n",
+        "    vectorstore = Chroma.from_documents(\n",
+        "        documents=chunks,\n",
+        "        embedding=embedding_model,\n",
+        "        persist_directory=persist_directory,\n",
+        "        collection_metadata={\"hnsw:space\": \"cosine\"}\n",
+        "    )\n",
+        "    print(\"--- Finished creating vector store ---\")\n",
+        "\n",
+        "    print(f\"Vector store created and saved to {persist_directory}\")\n",
+        "    return vectorstore\n",
+        "\n",
+        "persistent_directory = f\"{BASE_DIR}/db/chroma_db\"\n",
+        "vectorstore = create_vector_store(chunks, persistent_directory)"
+      ],
+      "metadata": {
+        "id": "3ce9pcT3HyFs",
+        "outputId": "d509fee1-687e-47a3-bfb1-ed3b9b4837ea",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "execution_count": 76,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Creating embeddings and storing in ChromaDB...\n",
+            "--- Creating vector store ---\n",
+            "--- Finished creating vector store ---\n",
+            "Vector store created and saved to /content/drive/MyDrive/rag-for-beginners/db/chroma_db\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import google.generativeai as genai\n",
+        "genai.configure(api_key=os.environ[\"GOOGLE_API_KEY\"])\n",
+        "\n",
+        "for m in genai.list_models():\n",
+        "    if 'embedContent' in m.supported_generation_methods:\n",
+        "        print(m.name)"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 69
+        },
+        "id": "4gFfHm-pHATJ",
+        "outputId": "b8f25970-4bf4-425f-8d85-83e0e7397d56"
+      },
+      "execution_count": 77,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "models/gemini-embedding-001\n",
+            "models/gemini-embedding-2-preview\n",
+            "models/gemini-embedding-2\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "**Next step (Step 8) — actually querying it, which is the \"retrieval\" half of RAG:bold text**"
+      ],
+      "metadata": {
+        "id": "pIiMk34eKLIl"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "query = \"What does Tesla do?\"\n",
+        "\n",
+        "results = vectorstore.similarity_search(query, k=2)\n",
+        "\n",
+        "for i, doc in enumerate(results):\n",
+        "    print(f\"\\n--- Result {i+1} ---\")\n",
+        "    print(f\"Source: {doc.metadata['source']}\")\n",
+        "    print(f\"Content: {doc.page_content}\")"
+      ],
+      "metadata": {
+        "id": "emU_gvX0IURk",
+        "outputId": "798e2c00-604f-4da7-ffc8-0d85354653fe",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "execution_count": 78,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\n",
+            "--- Result 1 ---\n",
+            "Source: /content/drive/MyDrive/rag-for-beginners/docs/tesla.txt\n",
+            "Content: Tesla, Inc. is an American multinational automotive and clean energy company headquartered in Austin, Texas.\n",
+            "\n",
+            "--- Result 2 ---\n",
+            "Source: /content/drive/MyDrive/rag-for-beginners/docs/tesla.txt\n",
+            "Content: Tesla, Inc. is an American multinational automotive and clean energy company headquartered in Austin, Texas.\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "**You've now completed the full pipeline this tutorial's video #3 covers**:\n",
+        "\n",
+        "**Load** → read .txt files into documents\n",
+        "\n",
+        "**Split** → break them into chunks\n",
+        "\n",
+        "**Embed** → convert chunks into meaning-vectors (via Gemini, for free)\n",
+        "\n",
+        "**Store** → persist them in ChromaDB\n",
+        "\n",
+        "**Retrieve** → search by meaning and get back relevant chunks"
+      ],
+      "metadata": {
+        "id": "RJYJV_0mKiWO"
+      }
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "**Step 9 — Set up the Gemini chat model**"
+      ],
+      "metadata": {
+        "id": "81SB0cutKASE"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "!pip install -q langchain-google-genai\n",
+        "\n",
+        "from langchain_google_genai import ChatGoogleGenerativeAI\n",
+        "\n",
+        "llm = ChatGoogleGenerativeAI(model=\"models/gemini-3.6-flash\")"
+      ],
+      "metadata": {
+        "id": "t0AB6HBCJ8a5"
+      },
+      "execution_count": 79,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "for m in genai.list_models():\n",
+        "    if 'generateContent' in m.supported_generation_methods:\n",
+        "        print(m.name)"
+      ],
+      "metadata": {
+        "collapsed": true,
+        "id": "5HSOUShdOQiu",
+        "outputId": "ab8eb63b-d540-4614-d7cc-255f0902f245",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 711
+        }
+      },
+      "execution_count": 80,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "models/gemini-2.5-flash\n",
+            "models/gemini-2.5-pro\n",
+            "models/gemini-2.5-flash-preview-tts\n",
+            "models/gemini-2.5-pro-preview-tts\n",
+            "models/gemma-4-26b-a4b-it\n",
+            "models/gemma-4-31b-it\n",
+            "models/gemini-flash-latest\n",
+            "models/gemini-flash-lite-latest\n",
+            "models/gemini-pro-latest\n",
+            "models/gemini-2.5-flash-lite\n",
+            "models/gemini-2.5-flash-image\n",
+            "models/gemini-3-flash-preview\n",
+            "models/gemini-3.1-pro-preview\n",
+            "models/gemini-3.1-pro-preview-customtools\n",
+            "models/gemini-3.1-flash-lite-preview\n",
+            "models/gemini-3.1-flash-lite\n",
+            "models/gemini-3-pro-image-preview\n",
+            "models/gemini-3-pro-image\n",
+            "models/nano-banana-pro-preview\n",
+            "models/gemini-3.1-flash-image-preview\n",
+            "models/gemini-3.1-flash-image\n",
+            "models/gemini-3.1-flash-lite-image\n",
+            "models/gemini-3.5-flash\n",
+            "models/gemini-3.5-flash-lite\n",
+            "models/gemini-omni-flash-preview\n",
+            "models/gemini-omni-1.1-flash\n",
+            "models/gemini-3.5-transcribe\n",
+            "models/gemini-3.6-flash\n",
+            "models/gemini-3.7-flash\n",
+            "models/gemini-3.8-flash\n",
+            "models/lyria-3-clip-preview\n",
+            "models/lyria-3-pro-preview\n",
+            "models/lyria-3.5\n",
+            "models/gemini-3.1-flash-tts-preview\n",
+            "models/gemini-robotics-er-2-preview\n",
+            "models/gemini-2.5-computer-use-preview-10-2025\n",
+            "models/antigravity-preview-05-2026\n",
+            "models/deep-research-max-preview-04-2026\n",
+            "models/deep-research-preview-04-2026\n",
+            "models/deep-research-pro-preview-12-2025\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "**Step 10 — Combine retrieval + generation into an actual RAG answer**"
+      ],
+      "metadata": {
+        "id": "TBSrSZs4Q1Pp"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "def rag_query(question, k=2):\n",
+        "    \"\"\"Retrieve relevant chunks, then generate an answer using them as context\"\"\"\n",
+        "\n",
+        "    # 1. Retrieve relevant chunks\n",
+        "    results = vectorstore.similarity_search(question, k=k)\n",
+        "    context = \"\\n\\n\".join([doc.page_content for doc in results])\n",
+        "\n",
+        "    # 2. Build a prompt that grounds the LLM in the retrieved context\n",
+        "    prompt = f\"\"\"Answer the question based only on the context below.\n",
+        "If the answer isn't in the context, say you don't know.\n",
+        "\n",
+        "Context:\n",
+        "{context}\n",
+        "\n",
+        "Question: {question}\n",
+        "\n",
+        "Answer:\"\"\"\n",
+        "\n",
+        "    # 3. Generate the answer\n",
+        "    response = llm.invoke(prompt)\n",
+        "\n",
+        "    print(f\"Question: {question}\\n\")\n",
+        "    print(f\"Retrieved context:\\n{context}\\n\")\n",
+        "    print(f\"Answer: {response.content}\")\n",
+        "\n",
+        "    return response.content\n",
+        "\n",
+        "rag_query(\"What does Tesla do?\")"
+      ],
+      "metadata": {
+        "id": "AEYi-ZRMQ53Q",
+        "outputId": "cc6ce140-b130-48b8-dd91-1a8775be5e5b",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "execution_count": 81,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Question: What does Tesla do?\n",
+            "\n",
+            "Retrieved context:\n",
+            "Tesla, Inc. is an American multinational automotive and clean energy company headquartered in Austin, Texas.\n",
+            "\n",
+            "Tesla, Inc. is an American multinational automotive and clean energy company headquartered in Austin, Texas.\n",
+            "\n",
+            "Answer: [{'type': 'text', 'text': 'Based on the context provided, Tesla is an automotive and clean energy company.', 'extras': {'signature': 'Er4GCrsGARFNMg/XszxvBCY6lHq6Wf5jPMWcKsPiJ9KA7sXj5jJ3AWMQQXCwKtpjbchUlYFQ53XPVm2zvCoQvGt0JF6xoT/tE2ylzPKCr+gr64RyZuNCCc4KJae0dZoHjJ8CPOWP/CGZdIWUP2wglRiH0a3niayt5MjVR3BWisHGW1YWSKjn1o1mlDJB1dah5iXS0rsKdA82NqJufIhb5Flu7sGYp94nxxzBsf4aDOh/zjmRhJEZFx3PLwAZ7oZAym1YSmDPr295yGw5BS//KQPnm8ZJwCE+VgB+ncnMccoBpeji2UfegrhoDoRbDI3ykn4QmDdMP46EaW9luZwzmML8oYAX02OgYxgllQbwpfGV/rKZ2QzHeNOCTYTsLLIfrTRzOGl0CGuaT1FkcHhqgp9FuJGpz8YtZ6mkFx7qWODuHznjXh58AVwJlWAIuMRt86N6UXgXZAULTybv+YsK8/kw+kZ6hX1NVifqBf6ChoTtflmC4wYERvXFN22n5nfBhElDmHbPFn/PqqWKyyfLoKIRS9MKEUAjD8wYtZKDszLxgvKVD2Oj6EORX4LMTF5AdBhu/sjicjXmmROQk3CcjFjBcwef7xqdfEci4BVCSFpyVbKUR0NQBfuv2gqNBhaTLgWiNrYcAIQgVszfTFRss/6d5vysMGFmT8tORvG3D6VteE7b7yZo2B4+jGHK6LKeb+U+NxNsqvcE4Mx0MqDd/AnHCjB79791cX7qfIUFX56H+qrLKYsBw6VfxiHPid4AFPMYWawzuyG87pzPH+7yp6qFkX+ZEMVXf9mTgoczSPsLiz63qW22GEk2RqS61/gjzvmOQTiIeKUTTfBNpgkV55MFKfmI2kR+lAI4zc5qFCHi06wcxfaD+0dpE30MhvSfRf1tRWlDcdIxvNCDLuN1HHfBsjUm6r6oX98zadm+lrQsAIy9WGE7uS+s8E0cU5W/RTus/TFLlu8vh4dOc07tP1/7TA8clvWf6aenrf54HrY/9ijo6vEM1WtVUyKMqKhpqpGKrkuQSIgt0Zp2tXkvxjXJgPKGxTUHVUupzfOYL58rdgBdg4btNkO3UTLoS6nDShnWVvx584B2XbyhTBmDBTo='}}]\n"
+          ]
+        },
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "[{'type': 'text',\n",
+              "  'text': 'Based on the context provided, Tesla is an automotive and clean energy company.',\n",
+              "  'extras': {'signature': 'Er4GCrsGARFNMg/XszxvBCY6lHq6Wf5jPMWcKsPiJ9KA7sXj5jJ3AWMQQXCwKtpjbchUlYFQ53XPVm2zvCoQvGt0JF6xoT/tE2ylzPKCr+gr64RyZuNCCc4KJae0dZoHjJ8CPOWP/CGZdIWUP2wglRiH0a3niayt5MjVR3BWisHGW1YWSKjn1o1mlDJB1dah5iXS0rsKdA82NqJufIhb5Flu7sGYp94nxxzBsf4aDOh/zjmRhJEZFx3PLwAZ7oZAym1YSmDPr295yGw5BS//KQPnm8ZJwCE+VgB+ncnMccoBpeji2UfegrhoDoRbDI3ykn4QmDdMP46EaW9luZwzmML8oYAX02OgYxgllQbwpfGV/rKZ2QzHeNOCTYTsLLIfrTRzOGl0CGuaT1FkcHhqgp9FuJGpz8YtZ6mkFx7qWODuHznjXh58AVwJlWAIuMRt86N6UXgXZAULTybv+YsK8/kw+kZ6hX1NVifqBf6ChoTtflmC4wYERvXFN22n5nfBhElDmHbPFn/PqqWKyyfLoKIRS9MKEUAjD8wYtZKDszLxgvKVD2Oj6EORX4LMTF5AdBhu/sjicjXmmROQk3CcjFjBcwef7xqdfEci4BVCSFpyVbKUR0NQBfuv2gqNBhaTLgWiNrYcAIQgVszfTFRss/6d5vysMGFmT8tORvG3D6VteE7b7yZo2B4+jGHK6LKeb+U+NxNsqvcE4Mx0MqDd/AnHCjB79791cX7qfIUFX56H+qrLKYsBw6VfxiHPid4AFPMYWawzuyG87pzPH+7yp6qFkX+ZEMVXf9mTgoczSPsLiz63qW22GEk2RqS61/gjzvmOQTiIeKUTTfBNpgkV55MFKfmI2kR+lAI4zc5qFCHi06wcxfaD+0dpE30MhvSfRf1tRWlDcdIxvNCDLuN1HHfBsjUm6r6oX98zadm+lrQsAIy9WGE7uS+s8E0cU5W/RTus/TFLlu8vh4dOc07tP1/7TA8clvWf6aenrf54HrY/9ijo6vEM1WtVUyKMqKhpqpGKrkuQSIgt0Zp2tXkvxjXJgPKGxTUHVUupzfOYL58rdgBdg4btNkO3UTLoS6nDShnWVvx584B2XbyhTBmDBTo='}}]"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 81
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "You've now built the entire RAG loop end to end, for free:\n",
+        "\n",
+        "Load → Split → Embed → Store → Retrieve → Generate"
+      ],
+      "metadata": {
+        "id": "FBkHTXdaSjGY"
+      }
+    }
+  ]
+}
